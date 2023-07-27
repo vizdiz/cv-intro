@@ -1,6 +1,8 @@
 import argparse
+import import_ipynb
 
 import cv2
+import lane_detection.ipynb
 
 
 def main(ip_address):
@@ -16,6 +18,7 @@ def main(ip_address):
                 print(" YOU GOT THIS ")
                 print(frame.shape)
                 # TODO: Do something with the frame here
+                frame = lane_detection.process_image(frame)
 
             else:
                 pass
