@@ -1,6 +1,7 @@
 from lane_detection import (
     detect_lanes,
     detect_lines,
+    draw_lines,
     draw_lanes,
     get_slopes_intercepts,
 )
@@ -56,18 +57,26 @@ def recommend_strafe_direction(center, slope, width):
     return (strafe_direction, turn_direction)
 
 
-def process_image(img):
+def process_image(img, underwater):
     height = img.shape[0]
 
-    lines = detect_lines(img, 5, 70, 3, 250, 100)
-
-    if lines is None:
-        return img
+    if not underwater:
+        lines = detect_lines(img, 40, 70, 5, 50, 30)
+    else:
+        lines = detect_lines(img, 5, 70, 3, 250, 100)
 
     lanes = detect_lanes(lines, height)
 
+    # if len(lanes) < 1:
+    #     print("No lanes found.")
+    #     return img
+
     if len(lanes) < 1:
+        print("Lanes found.")
+        img = draw_lines(img, lines, height)
         return img
+
+    print("Lanes found.")
 
     center_lane = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
 
