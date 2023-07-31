@@ -28,8 +28,6 @@ def detect_lines(
         maxLineGap=maxLineGap,
     )  # detects lines
 
-    print(lines)
-
     return lines
 
 
