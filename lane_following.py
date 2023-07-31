@@ -58,18 +58,14 @@ def recommend_strafe_direction(center, slope, width):
 
 
 def process_image(img, underwater):
-    height = img.shape[0]
+    height, width, channels = img.shape
 
     if not underwater:
         lines = detect_lines(img, 40, 70, 5, 50, 30)
     else:
-        lines = detect_lines(img, 5, 70, 3, 250, 100)
+        lines = detect_lines(img, 5, 70, 3, 300, 100)
 
-    lanes = detect_lanes(lines, height)
-
-    # if len(lanes) < 1:
-    #     print("No lanes found.")
-    #     return img
+    lanes = detect_lanes(lines, height, width)
 
     if len(lanes) < 1:
         print("Lanes found.")
@@ -78,11 +74,12 @@ def process_image(img, underwater):
 
     print("Lanes found.")
 
-    center_lane = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
+    # center_lane = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
 
-    img = draw_lanes(img, center_lane, height)
+    # img = draw_lanes(img, center_lane, height)
 
-    # plt.imshow(img)
-    # plt.show()
+    # img = draw_lanes(img, lanes, height)
 
-    return img
+    b, m = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
+
+    return b, m

@@ -10,8 +10,8 @@ def detect_lines(
     minLineLength: int = 100,
     maxLineGap: int = 10,
 ):
-    min_threshold = 80  # Land
-    # min_threshold = 150  # Underwater(Tune)
+    # min_threshold = 80  # Land
+    min_threshold = 100  # Underwater(Tune)
 
     blur = cv2.GaussianBlur(img, (5, 5), 0)
     gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)  # convert to grayscale
@@ -65,24 +65,24 @@ def get_slopes_intercepts(lines, height):
     return slopes, intercepts
 
 
-def detect_lanes(lines, height):
+def detect_lanes(lines, width, height):
     slopes, intercepts = get_slopes_intercepts(lines, height)
 
     # Underwater Parameters
-    # m_tol = 15e-1
-    # b_tol = 6e2
-    # dm_min = 7e-3
-    # db_min = 5e1
-    # horizontal_tol = 1e3(underwater)
-    # vertical_threshold = 5e2(underwater)
+    m_tol = 3e0
+    b_tol = width / 4
+    dm_min = 1e-1
+    db_min = width / 20
+    horizontal_tol = 1e2
+    vertical_threshold = height / 2
 
     # Land Parameters
-    m_tol = 2e0
-    b_tol = 3e2
-    dm_min = 0e-2
-    db_min = 5e0
-    horizontal_tol = 1e2
-    vertical_threshold = 1e2
+    # m_tol = 2e0
+    # b_tol = 3e2
+    # dm_min = 0e-2
+    # db_min = 5e0
+    # horizontal_tol = 1e2
+    # vertical_threshold = 1e2
 
     used = []
     lanes = []
