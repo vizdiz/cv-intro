@@ -8,11 +8,11 @@ from lane_detection import (
 
 
 def get_lane_center(lanes, x_center, height):
-    center_lane = [[x.tolist()] for x in lanes[0]]
+    center_lane = [[x] for x in lanes[0]]
 
     if len(lanes) > 1:
         for pair in lanes[1:]:
-            lane = [[x.tolist()] for x in pair]
+            lane = [[x] for x in pair]
 
             # Debug, wrong intercept(use bottom instead of top)
             _, intercepts_0 = get_slopes_intercepts(center_lane, height)
@@ -27,8 +27,7 @@ def get_lane_center(lanes, x_center, height):
     slopes, intercepts = get_slopes_intercepts(center_lane, height)
     m, b = (sum(slopes) / len(slopes), sum(intercepts) / len(intercepts))
 
-    return b, m
-    # return center_lane
+    return b, m, center_lane
 
 
 def recommend_strafe_direction(center, slope, width):
@@ -57,29 +56,22 @@ def recommend_strafe_direction(center, slope, width):
     return (strafe_direction, turn_direction)
 
 
-def process_image(img, underwater):
+def process_image(img):
     height, width, channels = img.shape
 
-    if not underwater:
-        lines = detect_lines(img, 40, 70, 5, 50, 30)
-    else:
-        lines = detect_lines(img, 5, 70, 3, 300, 100)
+    # lines = detect_lines(img, 30, 50, 3, 50, 30)  # (land)
+    lines = detect_lines(img, 5, 70, 3, 300, 100)  # (underwater)
+
+    if len(lines) < 1:
+        return img
 
     lanes = detect_lanes(lines, height, width)
 
     if len(lanes) < 1:
-        print("Lanes found.")
-        img = draw_lines(img, lines, height)
-        return img
+        return width / 2, 1e4, img
 
-    print("Lanes found.")
+    b, m, center_lane = get_lane_center(lanes, width / 2, height)
 
-    # center_lane = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
+    img = draw_lanes(img, center_lane, height)
 
-    # img = draw_lanes(img, center_lane, height)
-
-    # img = draw_lanes(img, lanes, height)
-
-    b, m = get_lane_center(lanes, img.shape[0] / 2, img.shape[1])
-
-    return b, m
+    return b, m, img

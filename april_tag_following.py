@@ -1,12 +1,11 @@
-import cv2
 from pymavlink import mavutil
 from dt_apriltags import Detector
-import matplotlib.pyplot as plt
 import numpy as np
 from pid import PID
 import sys
 import signal
 from video import Video
+from april_tag_processing import *
 
 
 def set_rc_channel_pwm(mav, channel_id, pwm=1500):
@@ -41,7 +40,7 @@ def set_x_axis_power(mav, power=0):
 
     power = int(power)
 
-    set_rc_channel_pwm(mav, 4, 1500 + power * 5)
+    set_rc_channel_pwm(mav, 5, 1500 + power * 5)
 
 
 def set_y_axis_power(mav, power=0):
@@ -55,28 +54,14 @@ def set_y_axis_power(mav, power=0):
 
     power = int(power)
 
-    set_rc_channel_pwm(mav, 5, 1500 + power * 5)
-
-
-def press_to_depth(pressure):
-    """Convert pressure to depth
-    Args:
-        pressure (float): Pressure in hPa
-    Returns:
-        float: Depth in water in meters
-    """
-    rho = 1029  # density of fresh water in kg/m^3
-    g = 9.81  # gravity in m/s^2
-    pressure_at_sea_level = 1013.25  # pressure at sea level in hPa
-    # multiply by 100 to convert hPa to Pa
-    return (pressure - pressure_at_sea_level) * 100 / (rho * g)
+    set_rc_channel_pwm(mav, 3, 1500 + power * 5)
 
 
 def main():
     mav = mavutil.mavlink_connection("udpin:0.0.0.0:14550")
 
-    x_pid = PID(0.45, 0.0, 0.1)
-    y_pid = PID(0.30, 0.0, 0.075)
+    x_pid = PID(10.0, 0.0, 1.0)
+    y_pid = PID(9.0, 0.0, 2.0)
 
     # catch CTRL+C
     def signal_handler(sig, frame):
@@ -107,6 +92,16 @@ def main():
     )
     print("Mode set to MANUAL")
 
+    at_detector = at_detector = Detector(
+        families="tag36h11",
+        nthreads=1,
+        quad_decimate=1.0,
+        quad_sigma=0.0,
+        refine_edges=1,
+        decode_sharpening=0.25,
+        debug=0,
+    )
+
     while True:
         video = Video()
 
@@ -134,117 +129,21 @@ def main():
             continue
 
         # calculate error in pixels on both the X and Y axes
-        processed_image, tags, raw_x_error, raw_y_error = detect_april_tags(frame)
+        height, width, channels = frame.shape
 
-        if len(tags) < 1:
-            continue
+        tags = detect_april_tags(frame, at_detector)
 
-        # calculate error
-        x_output = x_pid.update(raw_x_error)
-        y_output = y_pid.update(raw_y_error)
+        x_raw_error, y_raw_error = determine_error(tags, (width, height))
 
-        print("X-Axis Output: ", x_output)
-        print("Y-Axis Output: ", y_output)
+        errors = (x_raw_error, y_raw_error)
+        pid_controllers = (x_pid, y_pid)
 
-        # set x-axis power
-        set_x_axis_power(mav, x_output)
+        x_output, y_output = calculate_pid_output(errors, pid_controllers)
 
-        # set y-axis power
-
-        set_y_axis_power(mav, y_output)
+        print(f"X-output{x_output}, Y-output:{y_output}")
 
 
-def detect_april_tags(img, at_detector):
-    try:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        cameraMatrix = np.array([1060.71, 0, 960, 0, 1060.71, 540, 0, 0, 1]).reshape(
-            (3, 3)
-        )
-        camera_params = (
-            cameraMatrix[0, 0],
-            cameraMatrix[1, 1],
-            cameraMatrix[0, 2],
-            cameraMatrix[1, 2],
-        )
-
-        tags = at_detector.detect(
-            gray, estimate_tag_pose=True, camera_params=camera_params, tag_size=0.1
-        )
-
-        color_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-
-        x_errors = [(tag.center[0] - (img.shape[1] / 2)) for tag in tags]
-        y_errors = [(tag.center[1] - (img.shape[0] / 2)) for tag in tags]
-
-        # print((x_errors, y_errors))
-
-        x_center, y_center = int(img.shape[1] / 2), int(img.shape[0] / 2)
-        crosshair_length = int(img.shape[1] / 20)
-
-        for tag in tags:
-            for idx in range(len(tag.corners)):
-                cv2.line(
-                    color_img,
-                    tuple(tag.corners[idx - 1, :].astype(int)),
-                    tuple(tag.corners[idx, :].astype(int)),
-                    (0, 255, 0),
-                )
-
-            cv2.line(
-                color_img,
-                (x_center, y_center - crosshair_length),
-                (x_center, y_center + crosshair_length),
-                (255, 0, 0),
-                5,
-            )
-
-            cv2.line(
-                color_img,
-                (x_center - crosshair_length, y_center),
-                (x_center + crosshair_length, y_center),
-                (255, 0, 0),
-                5,
-            )
-
-            cv2.line(
-                color_img,
-                (x_center, y_center),
-                (
-                    x_center + int(x_errors[tags.index(tag)]),
-                    y_center + int(y_errors[tags.index(tag)]),
-                ),
-                (0, 255, 0),
-                5,
-            )
-
-            cv2.putText(
-                color_img,
-                str(tag.tag_id),
-                org=(
-                    tag.corners[0, 0].astype(int) + 10,
-                    tag.corners[0, 1].astype(int) + 10,
-                ),
-                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=0.8,
-                color=(0, 0, 255),
-            )
-
-        x_avg_error = sum(x_errors) / len(x_errors)
-        y_avg_error = sum(y_errors) / len(y_errors)
-
-        return color_img, tags, x_avg_error, y_avg_error
-
-    except Exception as e:
-        print(e)
-
-        return img, None, None, None
-
-    # print(f"x error: {x_avg_error}")
-    # print(f"y error: {y_avg_error}")
-
-    # plt.imshow(color_img)
-    # plt.show()
+# TODO: Add thread implementation to run image retrieval and motors concurrently
 
 
 if __name__ == "__main__":

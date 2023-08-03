@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def detect_lines(
@@ -10,15 +11,23 @@ def detect_lines(
     minLineLength: int = 100,
     maxLineGap: int = 10,
 ):
-    # min_threshold = 80  # Land
-    min_threshold = 100  # Underwater(Tune)
+    # min_threshold = 125  # Land
+    min_threshold = 80  # Underwater(Tune)
 
     blur = cv2.GaussianBlur(img, (5, 5), 0)
     gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)  # convert to grayscale
     ret, threshold = cv2.threshold(gray, min_threshold, 255, cv2.THRESH_BINARY)
+
+    # plt.imshow(threshold)
+    # plt.show()
+
     edges = cv2.Canny(
         threshold, threshold1, threshold2, apertureSize=apertureSize
     )  # detect edges
+
+    # plt.imshow(edges)
+    # plt.show()
+
     lines = cv2.HoughLinesP(
         edges,
         1,
@@ -78,8 +87,8 @@ def detect_lanes(lines, width, height):
     # m_tol = 2e0
     # b_tol = 3e2
     # dm_min = 0e-2
-    # db_min = 5e0
-    # horizontal_tol = 1e2
+    # db_min = 1e2
+    # horizontal_tol = 5e1
     # vertical_threshold = 1e2
 
     used = []
@@ -109,14 +118,14 @@ def detect_lanes(lines, width, height):
                 abs(intercepts[i_1] - intercepts[i_0]) > db_min
                 and abs(1 / slopes[i_1] - 1 / slopes[i_0]) > dm_min
             ):
-                lanes.append([lines[i_0][0], lines[i_1][0]])
+                lanes.append([lines[i_0][0].tolist(), lines[i_1][0].tolist()])
                 appended = True
 
                 used.append(i_0)
                 used.append(i_1)
 
         if not appended:
-            lanes.append([lines[i_0][0]])
+            lanes.append([lines[i_0][0].tolist()])
             used.append(i_0)
 
     return lanes
@@ -151,13 +160,11 @@ def draw_lanes(img, lanes, height):
     return img
 
 
-def process_image(img, underwater):
+def process_image(img):
     height = img.shape[0]
 
-    if not underwater:
-        lines = detect_lines(img, 40, 70, 5, 50, 30)
-    else:
-        lines = detect_lines(img, 5, 70, 3, 250, 100)
+    # lines = detect_lines(img, 40, 70, 5, 50, 30) # (land)
+    lines = detect_lines(img, 5, 70, 3, 250, 100)  # underwater
 
     if lines is None:
         return img
